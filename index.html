@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Daily Log App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- PDF Generation Libraries -->
+    <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/jspdf-autotable@3.5.23/dist/jspdf.plugin.autotable.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        .entry-row {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .modal-content {
+            animation: slideUp 0.3s ease-out;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 4px solid #4f46e5;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-200 flex items-center justify-center md:p-4">
+
+    <!-- App container -->
+    <div class="w-full max-w-md mx-auto bg-gray-50 h-screen md:h-[90vh] md:max-h-[800px] md:rounded-2xl shadow-2xl flex flex-col">
+        
+        <!-- Header -->
+        <header class="flex-shrink-0 bg-white border-b border-gray-200 p-4">
+            <div class="text-center">
+                <h1 class="text-xl font-bold text-gray-800">Your Daily Log</h1>
+                <p class="text-sm text-gray-500">Log your meals & activities for today.</p>
+            </div>
+        </header>
+
+        <!-- Main scrollable content -->
+        <main class="flex-grow overflow-y-auto p-4 md:p-6">
+            <div id="dailyLogForm" class="space-y-8">
+                
+                <!-- Meals Section -->
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-700 mb-3">Meals</h2>
+                    <div id="mealsContainer" class="space-y-3">
+                        <!-- Dynamic meal entries will be added here -->
+                    </div>
+                    <button type="button" onclick="addEntry('meal')" class="mt-3 w-full inline-flex justify-center items-center px-4 py-2 border border-dashed border-gray-400 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        + Add Meal Entry
+                    </button>
+                </div>
+
+                 <!-- API Key Section -->
+                 <div>
+                    <h2 class="text-lg font-semibold text-gray-700 mb-3">AI Report Generation</h2>
+                    <div>
+                        <label for="apiKey" class="block text-sm font-medium text-gray-700">OpenAI API Key</label>
+                        <input type="password" id="apiKey" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Enter your key here">
+                        <p class="mt-1 text-xs text-gray-500">
+                           Your OpenAI key is required to generate the report.
+                           <a href="https://platform.openai.com/api-keys" target="_blank" class="text-indigo-600 hover:underline">Get a key here.</a>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Activities Section -->
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-700 mb-3">Activities & More</h2>
+                    <div class="space-y-4">
+                        <!-- Swimming -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Swimming</label>
+                            <div class="flex items-center gap-2 mt-1">
+                                <input type="number" id="swimmingHours" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Hours" min="0">
+                                <input type="number" id="swimmingMins" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Mins" min="0" max="59">
+                            </div>
+                        </div>
+                        <!-- Sleep -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Sleep</label>
+                            <div class="flex items-center gap-2 mt-1">
+                                 <input type="number" id="sleepHours" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Hours" min="0">
+                                <input type="number" id="sleepMins" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Mins" min="0" max="59">
+                            </div>
+                        </div>
+                        <!-- Steps -->
+                        <div>
+                            <label for="stepsCount" class="block text-sm font-medium text-gray-700">Steps</label>
+                            <input type="number" id="stepsCount" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="e.g., 12357" min="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <!-- Footer Action Bar -->
+        <footer class="flex-shrink-0 p-4 bg-white border-t border-gray-200">
+            <button id="generateBtn" type="button" onclick="generateReport()" class="w-full inline-flex justify-center py-3 px-4 border border-transparent shadow-sm text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform active:scale-95">
+                Generate Report
+            </button>
+        </footer>
+    </div>
+
+
+    <!-- Result Modal -->
+    <div id="resultModal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+        <div class="modal-content w-full max-w-lg bg-white rounded-lg shadow-xl p-6">
+            <div class="text-center">
+                 <h2 id="modalTitle" class="text-xl font-semibold text-gray-800">Your Daily Report</h2>
+            </div>
+            <div id="modalBody" class="mt-4 min-h-[150px] flex items-center justify-center">
+                 <!-- Content will be injected here: loader or result -->
+            </div>
+            <div class="mt-6 flex flex-col sm:flex-row gap-3">
+                 <button id="closeBtn" type="button" onclick="closeModal()" class="w-full inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Datalist for food/activity suggestions -->
+    <datalist id="food-list">
+        <option value="Boiled Egg Whites"> <option value="Banana"> <option value="Papaya"> <option value="Apple"> <option value="Dates"> <option value="Chicken Tandoori"> <option value="Salad"> <option value="Coconut Water"> <option value="Ginger Honey Tea"> <option value="Ragi Dosa"> <option value="Cucumber"> <option value="Omelet"> <option value="Soaked Almonds (Badam)"> <option value="Cumin (Zeera) Water">
+    </datalist>
+
+    <script>
+        const { jsPDF } = window.jspdf;
+
+        function addEntry(type) {
+            const container = document.getElementById('mealsContainer');
+            const entryDiv = document.createElement('div');
+            entryDiv.className = 'entry-row flex items-center gap-2';
+            
+            entryDiv.innerHTML = `
+                <div class="flex items-center gap-1 flex-shrink-0">
+                    <input type="number" class="hour-input block w-14 text-center rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="HH" min="1" max="12">
+                    <span class="text-gray-500 font-bold">:</span>
+                    <input type="number" class="min-input block w-14 text-center rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="MM" min="0" max="59">
+                    <select class="ampm-select block w-16 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <option selected>am</option> <option>pm</option>
+                    </select>
+                </div>
+                <input type="text" list="food-list" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="e.g., 6 boiled egg whites">
+                <button type="button" onclick="this.parentElement.remove()" class="p-1 text-gray-400 hover:text-red-600 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </button>
+            `;
+            container.appendChild(entryDiv);
+        }
+
+        function getEntryLabel(time12) {
+            if (!time12) return "I had";
+            const [time, ampm] = time12.split(' ');
+            const [hourStr] = time.split(':');
+            const hour = parseInt(hourStr, 10);
+
+            if (ampm === 'am' && hour >= 5 && hour < 12) return `morning ${time12} i had`;
+            if ((ampm === 'pm' && hour === 12) || (ampm === 'pm' && hour >= 1 && hour < 5)) return `afternoon ${time12} i had`;
+            if (ampm === 'pm' && hour >= 5 && hour < 9) return `evening ${time12} i had`;
+            if ((ampm === 'pm' && hour >= 9 && hour <= 11) || (ampm === 'am' && hour === 12) || (ampm === 'am' && hour >= 1 && hour < 5)) return `night ${time12} i had`;
+            
+            return `at ${time12} i had`;
+        }
+        
+        function openModal() {
+            document.getElementById('resultModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('resultModal').classList.add('hidden');
+        }
+        
+        function setModalContent(title, htmlContent) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalBody').innerHTML = htmlContent;
+        }
+
+        function getReportContent() {
+             const mealEntries = document.querySelectorAll('#mealsContainer .entry-row');
+            const mealReportEntries = [];
+
+            mealEntries.forEach(entry => {
+                const textInput = entry.querySelector('input[type="text"]');
+                if (textInput.value.trim() !== "") {
+                    const hourInput = entry.querySelector('.hour-input').value;
+                    const minInput = entry.querySelector('.min-input').value;
+                    const ampmInput = entry.querySelector('.ampm-select').value;
+                    
+                    const hour = parseInt(hourInput) || 0;
+                    const minute = parseInt(minInput) || 0;
+
+                    const time12 = hour > 0 ? `${hour}:${String(minute).padStart(2, '0').slice(-2)} ${ampmInput}` : "";
+
+                    let hour24 = hour;
+                    if (ampmInput === 'pm' && hour < 12) hour24 += 12;
+                    else if (ampmInput === 'am' && hour === 12) hour24 = 0;
+                    
+                    const time24 = hour > 0 ? `${String(hour24).padStart(2, '0')}:${String(minute).padStart(2, '0').slice(-2)}` : "99:99";
+
+                    mealReportEntries.push({ time24, time12, text: textInput.value.trim() });
+                }
+            });
+            
+            mealReportEntries.sort((a, b) => a.time24.localeCompare(b.time24));
+
+            const mealLines = mealReportEntries.map(entry => {
+                const finalLabel = getEntryLabel(entry.time12);
+                return `${finalLabel} ${entry.text}`;
+            });
+            
+            const activityLines = [];
+            const swimmingHours = document.getElementById('swimmingHours').value;
+            const swimmingMins = document.getElementById('swimmingMins').value;
+            let swimmingText = "";
+            if (swimmingHours > 0) swimmingText += `${swimmingHours} hour${swimmingHours > 1 ? 's' : ''} `;
+            if (swimmingMins > 0) swimmingText += `${swimmingMins} min`;
+            if (swimmingText) activityLines.push(`swimming ${swimmingText.trim()}`);
+
+            const sleepHours = document.getElementById('sleepHours').value;
+            const sleepMins = document.getElementById('sleepMins').value;
+            let sleepText = "";
+            if (sleepHours > 0) sleepText += `${sleepHours} hour${sleepHours > 1 ? 's' : ''} `;
+            if (sleepMins > 0) sleepText += `${sleepMins} min`;
+            if (sleepText) activityLines.push(`sleep ${sleepText.trim()}`);
+            
+            const steps = document.getElementById('stepsCount').value;
+            if (steps > 0) activityLines.push(`steps ${steps}`);
+            
+            let mealContent = mealLines.join('\n');
+            let activityContent = activityLines.join('\n');
+            let reportContent = mealContent;
+            if (activityContent) {
+                reportContent += reportContent ? '\n' + activityContent : activityContent;
+            }
+            return reportContent.trim();
+        }
+
+        async function generateReport() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const reportContent = getReportContent();
+
+            if (!apiKey) {
+                setModalContent('Error', '<p class="text-red-600 text-center">Please enter your OpenAI API key to generate a report.</p>');
+                openModal();
+                return;
+            }
+
+            if (!reportContent) {
+                setModalContent('Error', '<p class="text-red-600 text-center">Please log at least one meal or activity.</p>');
+                openModal();
+                return;
+            }
+
+            const generateBtn = document.getElementById('generateBtn');
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = '<div class="loader mx-auto" style="height:20px; width:20px; border-width: 2px;"></div>';
+
+            setModalContent('Generating Your Report...', '<div class="loader mx-auto"></div><p class="text-center text-sm text-gray-500 mt-2">This may take a moment...</p>');
+            openModal();
+
+            const prompt = `Based on the following user-submitted log, generate a daily weight loss report. The output must be in Markdown format.
+
+User Log:
+---
+${reportContent}
+---
+
+Report Requirements:
+1.  A "Food Intake" table with columns: Time, Food, Calories, Protein(g), Carbs(g), Fat(g). Estimate nutritional values.
+2.  An "Activity" table with columns: Activity, Duration, Calories Burned. Estimate calories burned.
+3.  A "Summary" table with rows: Calories In, Calories Out, Net Deficit.
+4.  A "Review" section with a title (e.g., ### Review) and a brief, encouraging paragraph with one or two actionable suggestions.`;
+
+            try {
+                const apiUrl = 'https://api.openai.com/v1/chat/completions';
+                const payload = {
+                    model: "gpt-3.5-turbo",
+                    messages: [
+                        { "role": "system", "content": "You are a helpful assistant that generates wellness reports in Markdown format." },
+                        { "role": "user", "content": prompt }
+                    ]
+                };
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error.message || 'API request failed');
+                }
+
+                const result = await response.json();
+                const aiContent = result.choices[0].message.content;
+                
+                // --- PDF GENERATION ---
+                const doc = new jsPDF();
+                const lines = aiContent.split('\n');
+                let currentY = 20;
+
+                doc.setFontSize(18);
+                doc.text("Your Daily Wellness Report", 105, currentY, { align: 'center' });
+                currentY += 15;
+
+                let tableHeaders = [];
+                let tableBody = [];
+                let inTable = false;
+
+                for (const line of lines) {
+                    if (line.startsWith('###')) { // Section Title
+                        if (tableBody.length > 0) { // Render previous table if exists
+                             doc.autoTable({ head: [tableHeaders], body: tableBody, startY: currentY });
+                             currentY = doc.previousAutoTable.finalY + 10;
+                             tableHeaders = []; tableBody = [];
+                        }
+                        doc.setFontSize(14);
+                        doc.text(line.replace('###', '').trim(), 14, currentY);
+                        currentY += 8;
+                    } else if (line.startsWith('|')) {
+                        const cells = line.split('|').map(c => c.trim()).filter(c => c);
+                        if (!inTable) { // This is a header row
+                           if (line.includes('---')) continue; // Skip separator line
+                           tableHeaders = cells;
+                           inTable = true;
+                        } else {
+                           if (line.includes('---')) continue; // Skip separator line
+                           tableBody.push(cells);
+                        }
+                    } else { // Regular text or end of table
+                        if (tableBody.length > 0) {
+                             doc.autoTable({ head: [tableHeaders], body: tableBody, startY: currentY });
+                             currentY = doc.previousAutoTable.finalY + 10;
+                             tableHeaders = []; tableBody = []; inTable = false;
+                        }
+                        if (line.trim()) {
+                            doc.setFontSize(10);
+                            const splitText = doc.splitTextToSize(line, 180);
+                            doc.text(splitText, 14, currentY);
+                            currentY += (splitText.length * 5);
+                        }
+                    }
+                }
+                // Render the last table if the text ends with one
+                 if (tableBody.length > 0) {
+                    doc.autoTable({ head: [tableHeaders], body: tableBody, startY: currentY });
+                }
+
+                doc.save('daily-report.pdf');
+                setModalContent('Success!', '<p class="text-center text-green-600">Your PDF report has been downloaded!</p>');
+
+            } catch (error) {
+                console.error('Error generating report:', error);
+                setModalContent('Error', `<p class="text-red-600 text-center">Failed to generate report. Please check your API key and network connection. <br><small class="text-gray-500">${error.message}</small></p>`);
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.innerText = 'Generate Report';
+            }
+        }
+
+        // Add one initial meal entry to start
+        window.onload = () => {
+            addEntry('meal');
+        }
+    </script>
+</body>
+</html>
