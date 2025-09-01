@@ -6,9 +6,6 @@
     <title>Daily Log App</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- PDF Generation Libraries -->
-    <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js"></script>
-    <script src="https://unpkg.com/jspdf-autotable@3.5.23/dist/jspdf.plugin.autotable.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -30,18 +27,6 @@
         }
         .modal-content {
             animation: slideUp 0.3s ease-out;
-        }
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-radius: 50%;
-            border-top: 4px solid #4f46e5;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -71,19 +56,6 @@
                     <button type="button" onclick="addEntry('meal')" class="mt-3 w-full inline-flex justify-center items-center px-4 py-2 border border-dashed border-gray-400 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         + Add Meal Entry
                     </button>
-                </div>
-
-                 <!-- API Key Section -->
-                 <div>
-                    <h2 class="text-lg font-semibold text-gray-700 mb-3">AI Report Generation</h2>
-                    <div>
-                        <label for="apiKey" class="block text-sm font-medium text-gray-700">OpenAI API Key</label>
-                        <input type="password" id="apiKey" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Enter your key here">
-                        <p class="mt-1 text-xs text-gray-500">
-                           Your OpenAI key is required to generate the report.
-                           <a href="https://platform.openai.com/api-keys" target="_blank" class="text-indigo-600 hover:underline">Get a key here.</a>
-                        </p>
-                    </div>
                 </div>
 
                 <!-- Activities Section -->
@@ -131,11 +103,12 @@
             <div class="text-center">
                  <h2 id="modalTitle" class="text-xl font-semibold text-gray-800">Your Daily Report</h2>
             </div>
-            <div id="modalBody" class="mt-4 min-h-[150px] flex items-center justify-center">
-                 <!-- Content will be injected here: loader or result -->
+            <div id="modalBody" class="mt-4">
+                 <textarea id="reportOutput" readonly class="w-full h-48 p-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-800 focus:ring-0 focus:border-gray-300"></textarea>
             </div>
-            <div class="mt-6 flex flex-col sm:flex-row gap-3">
-                 <button id="closeBtn" type="button" onclick="closeModal()" class="w-full inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Close</button>
+            <div class="mt-6 flex flex-col sm:flex-row-reverse gap-3">
+                 <button id="copyBtn" type="button" onclick="copyToClipboard()" class="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">Copy Text</button>
+                 <button id="closeBtn" type="button" onclick="closeModal()" class="w-full sm:w-auto inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Close</button>
             </div>
         </div>
     </div>
@@ -146,8 +119,6 @@
     </datalist>
 
     <script>
-        const { jsPDF } = window.jspdf;
-
         function addEntry(type) {
             const container = document.getElementById('mealsContainer');
             const entryDiv = document.createElement('div');
@@ -192,11 +163,6 @@
             document.getElementById('resultModal').classList.add('hidden');
         }
         
-        function setModalContent(title, htmlContent) {
-            document.getElementById('modalTitle').innerText = title;
-            document.getElementById('modalBody').innerHTML = htmlContent;
-        }
-
         function getReportContent() {
              const mealEntries = document.querySelectorAll('#mealsContainer .entry-row');
             const mealReportEntries = [];
@@ -257,130 +223,40 @@
             return reportContent.trim();
         }
 
-        async function generateReport() {
-            const apiKey = document.getElementById('apiKey').value.trim();
+        function generateReport() {
             const reportContent = getReportContent();
 
-            if (!apiKey) {
-                setModalContent('Error', '<p class="text-red-600 text-center">Please enter your OpenAI API key to generate a report.</p>');
-                openModal();
-                return;
-            }
-
             if (!reportContent) {
-                setModalContent('Error', '<p class="text-red-600 text-center">Please log at least one meal or activity.</p>');
-                openModal();
+                alert("Please log at least one meal or activity before generating a report.");
                 return;
             }
-
-            const generateBtn = document.getElementById('generateBtn');
-            generateBtn.disabled = true;
-            generateBtn.innerHTML = '<div class="loader mx-auto" style="height:20px; width:20px; border-width: 2px;"></div>';
-
-            setModalContent('Generating Your Report...', '<div class="loader mx-auto"></div><p class="text-center text-sm text-gray-500 mt-2">This may take a moment...</p>');
+            
+            document.getElementById('reportOutput').value = reportContent;
             openModal();
+        }
 
-            const prompt = `Based on the following user-submitted log, generate a daily weight loss report. The output must be in Markdown format.
-
-User Log:
----
-${reportContent}
----
-
-Report Requirements:
-1.  A "Food Intake" table with columns: Time, Food, Calories, Protein(g), Carbs(g), Fat(g). Estimate nutritional values.
-2.  An "Activity" table with columns: Activity, Duration, Calories Burned. Estimate calories burned.
-3.  A "Summary" table with rows: Calories In, Calories Out, Net Deficit.
-4.  A "Review" section with a title (e.g., ### Review) and a brief, encouraging paragraph with one or two actionable suggestions.`;
-
-            try {
-                const apiUrl = 'https://api.openai.com/v1/chat/completions';
-                const payload = {
-                    model: "gpt-3.5-turbo",
-                    messages: [
-                        { "role": "system", "content": "You are a helpful assistant that generates wellness reports in Markdown format." },
-                        { "role": "user", "content": prompt }
-                    ]
-                };
-
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
-                    },
-                    body: JSON.stringify(payload)
+        function copyToClipboard() {
+            const reportOutput = document.getElementById('reportOutput');
+            reportOutput.select();
+            reportOutput.setSelectionRange(0, 99999); // For mobile devices
+            
+            // Using modern clipboard API with fallback
+            if (navigator.clipboard) {
+                 navigator.clipboard.writeText(reportOutput.value).then(() => {
+                    const copyBtn = document.getElementById('copyBtn');
+                    copyBtn.innerText = 'Copied!';
+                    setTimeout(() => { copyBtn.innerText = 'Copy Text'; }, 2000);
                 });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error.message || 'API request failed');
+            } else {
+                // Fallback for older browsers
+                try {
+                    document.execCommand('copy');
+                    const copyBtn = document.getElementById('copyBtn');
+                    copyBtn.innerText = 'Copied!';
+                    setTimeout(() => { copyBtn.innerText = 'Copy Text'; }, 2000);
+                } catch (err) {
+                    console.error('Fallback: Oops, unable to copy', err);
                 }
-
-                const result = await response.json();
-                const aiContent = result.choices[0].message.content;
-                
-                // --- PDF GENERATION ---
-                const doc = new jsPDF();
-                const lines = aiContent.split('\n');
-                let currentY = 20;
-
-                doc.setFontSize(18);
-                doc.text("Your Daily Wellness Report", 105, currentY, { align: 'center' });
-                currentY += 15;
-
-                let tableHeaders = [];
-                let tableBody = [];
-                let inTable = false;
-
-                for (const line of lines) {
-                    if (line.startsWith('###')) { // Section Title
-                        if (tableBody.length > 0) { // Render previous table if exists
-                             doc.autoTable({ head: [tableHeaders], body: tableBody, startY: currentY });
-                             currentY = doc.previousAutoTable.finalY + 10;
-                             tableHeaders = []; tableBody = [];
-                        }
-                        doc.setFontSize(14);
-                        doc.text(line.replace('###', '').trim(), 14, currentY);
-                        currentY += 8;
-                    } else if (line.startsWith('|')) {
-                        const cells = line.split('|').map(c => c.trim()).filter(c => c);
-                        if (!inTable) { // This is a header row
-                           if (line.includes('---')) continue; // Skip separator line
-                           tableHeaders = cells;
-                           inTable = true;
-                        } else {
-                           if (line.includes('---')) continue; // Skip separator line
-                           tableBody.push(cells);
-                        }
-                    } else { // Regular text or end of table
-                        if (tableBody.length > 0) {
-                             doc.autoTable({ head: [tableHeaders], body: tableBody, startY: currentY });
-                             currentY = doc.previousAutoTable.finalY + 10;
-                             tableHeaders = []; tableBody = []; inTable = false;
-                        }
-                        if (line.trim()) {
-                            doc.setFontSize(10);
-                            const splitText = doc.splitTextToSize(line, 180);
-                            doc.text(splitText, 14, currentY);
-                            currentY += (splitText.length * 5);
-                        }
-                    }
-                }
-                // Render the last table if the text ends with one
-                 if (tableBody.length > 0) {
-                    doc.autoTable({ head: [tableHeaders], body: tableBody, startY: currentY });
-                }
-
-                doc.save('daily-report.pdf');
-                setModalContent('Success!', '<p class="text-center text-green-600">Your PDF report has been downloaded!</p>');
-
-            } catch (error) {
-                console.error('Error generating report:', error);
-                setModalContent('Error', `<p class="text-red-600 text-center">Failed to generate report. Please check your API key and network connection. <br><small class="text-gray-500">${error.message}</small></p>`);
-            } finally {
-                generateBtn.disabled = false;
-                generateBtn.innerText = 'Generate Report';
             }
         }
 
@@ -391,3 +267,4 @@ Report Requirements:
     </script>
 </body>
 </html>
+
